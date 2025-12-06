@@ -17,7 +17,7 @@ const GENRES = [
 const CategoriesPage: React.FC = () => {
   return (
     <div className="min-h-screen max-w-7xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-slate-900 mb-8">Music Categories</h1>
+      <h1 className="text-3xl font-bold text-slate-900 mb-8">Categories</h1>
       
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {GENRES.map((genre) => (

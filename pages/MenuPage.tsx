@@ -1,44 +1,107 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Music2, User, Phone, ListMusic, Grid, ChevronRight } from 'lucide-react';
+import { Music2, User, Phone, ListMusic, Grid, Lock, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../utils/auth';
 
 const MenuPage: React.FC = () => {
+  const isAuth = useAuth();
+
   const menuItems = [
-    { title: 'Browse Songs A-Z', icon: ListMusic, path: '/browse/songs/A', color: 'text-primary bg-primary/10' },
-    { title: 'Browse Artists A-Z', icon: User, path: '/browse/artists/A', color: 'text-secondary bg-secondary/10' },
-    { title: 'Music Categories', icon: Grid, path: '/categories', color: 'text-emerald-500 bg-emerald-100' },
-    { title: 'Contact Us', icon: Phone, path: '/contact', color: 'text-orange-500 bg-orange-100' },
+    { 
+        title: 'Songs A-Z', 
+        description: 'Browse lyrics alphabetically',
+        icon: ListMusic, 
+        path: '/browse/songs/A', 
+        gradient: 'from-blue-500 to-cyan-500' 
+    },
+    { 
+        title: 'Artists A-Z', 
+        description: 'Find your favorite artists',
+        icon: User, 
+        path: '/browse/artists/A', 
+        gradient: 'from-purple-500 to-pink-500' 
+    },
+    { 
+        title: 'Categories', 
+        description: 'Explore genres & themes',
+        icon: Grid, 
+        path: '/categories', 
+        gradient: 'from-emerald-500 to-teal-500' 
+    },
+    { 
+        title: 'Contact Us', 
+        description: 'Get in touch for support',
+        icon: Phone, 
+        path: '/contact', 
+        gradient: 'from-orange-500 to-amber-500' 
+    },
   ];
 
+  const adminItem = isAuth ? {
+      title: 'Dashboard',
+      description: 'Manage content',
+      icon: ShieldCheck,
+      path: '/admin/dashboard',
+      gradient: 'from-slate-700 to-slate-900'
+  } : {
+      title: 'Admin Login',
+      description: 'Authorized access only',
+      icon: Lock,
+      path: '/login',
+      gradient: 'from-slate-400 to-slate-600'
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
+    <div className="min-h-screen bg-slate-50 px-4 py-8 pb-32">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold text-slate-900 mb-8">Menu</h1>
+        <h1 className="text-4xl font-extrabold text-slate-900 mb-2">Menu</h1>
+        <p className="text-slate-500 mb-8">Explore SansarPlus</p>
         
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {menuItems.map((item, idx) => (
             <Link 
               key={idx} 
               to={item.path}
-              className={`flex items-center justify-between p-5 hover:bg-slate-50 transition-colors ${idx !== menuItems.length - 1 ? 'border-b border-slate-100' : ''}`}
+              className="group relative overflow-hidden rounded-3xl p-6 bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
             >
-              <div className="flex items-center space-x-4">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${item.color}`}>
-                  <item.icon className="w-5 h-5" />
-                </div>
-                <span className="font-semibold text-slate-800 text-lg">{item.title}</span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-slate-300" />
+               {/* Hover Gradient Overlay */}
+               <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300`}></div>
+               
+               <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${item.gradient} flex items-center justify-center text-white shadow-md mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                  <item.icon className="w-7 h-7" />
+               </div>
+               
+               <h3 className="text-xl font-bold text-slate-900 mb-1 group-hover:text-primary transition-colors">{item.title}</h3>
+               <p className="text-sm text-slate-500">{item.description}</p>
             </Link>
           ))}
+
+          {/* Admin Card */}
+          <Link 
+              to={adminItem.path}
+              className="group relative overflow-hidden rounded-3xl p-6 bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 sm:col-span-2"
+            >
+               <div className={`absolute inset-0 bg-gradient-to-br ${adminItem.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300`}></div>
+               
+               <div className="flex items-center">
+                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${adminItem.gradient} flex items-center justify-center text-white shadow-md mr-5 group-hover:scale-110 transition-transform duration-300`}>
+                        <adminItem.icon className="w-7 h-7" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-900 mb-1">{adminItem.title}</h3>
+                        <p className="text-sm text-slate-500">{adminItem.description}</p>
+                    </div>
+               </div>
+            </Link>
         </div>
 
-        <div className="mt-8 bg-white rounded-2xl border border-slate-200 p-6 text-center shadow-sm">
-           <Music2 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-           <p className="text-slate-500 text-sm">
-             SansarPlus v1.0
-             <br/>
-             Nepali Christian Lyrics & Chords.
+        <div className="mt-12 text-center">
+           <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-full shadow-lg mb-4">
+               <Music2 className="w-8 h-8 text-indigo-500" />
+           </div>
+           <p className="font-bold text-slate-900">SansarPlus</p>
+           <p className="text-slate-400 text-xs mt-1">
+             v1.0.0 &bull; Nepali Christian Lyrics
            </p>
         </div>
       </div>

@@ -1,3 +1,4 @@
+
 export interface Song {
   title: string;
   artist: string;
@@ -15,6 +16,8 @@ export interface LyricsData {
   lyricist: string;
   lyrics_roman?: string;
   lyrics_nepali?: string;
+  views?: number;
+  category?: string; // Genre/Style
 }
 
 export interface SearchResult {
@@ -26,13 +29,20 @@ export interface SearchResult {
 export interface ArtistDetails {
   name: string;
   bio: string;
-  genre: string;
   topSongs: string[];
+  imageUrl?: string;
 }
 
 export interface HomeData {
   trendingSongs: { title: string; artist: string }[];
   popularArtists: string[];
+}
+
+export interface Banner {
+  id: string;
+  imageUrl: string;
+  title: string; // Verse text
+  subtitle: string; // Verse reference
 }
 
 declare global {

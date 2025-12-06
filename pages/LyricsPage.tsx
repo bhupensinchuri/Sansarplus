@@ -1,19 +1,48 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { getSongLyrics } from '../services/geminiService';
-import { LyricsData } from '../types';
+
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { getSongLyrics, getArtistDetails } from '../services/geminiService';
+import { LyricsData, ArtistDetails } from '../types';
 import Loader from '../components/Loader';
-import { User, Heart, Music, PenTool, Copy, Check, ArrowRight, ZoomIn, ZoomOut, Flag, X } from 'lucide-react';
+import { User, Heart, Music, PenTool, Copy, Check, ArrowRight, ZoomIn, ZoomOut, Flag, X, Edit, Trash2, Save, Printer, Eye, Tag, Monitor, Maximize, Minimize } from 'lucide-react';
 import { isFavorite, toggleFavorite, generateId } from '../utils/storage';
+import { useAuth } from '../utils/auth';
+import { saveCustomSong, deleteCustomSong, incrementViewCount, setViewCount, saveCustomArtist } from '../utils/dataManager';
+
+const CATEGORIES = ['Worship', 'Praise', 'Hymn', 'Pop', 'Rock', 'Folk', 'Gospel', 'Contemporary', 'Kids', 'Christmas', 'Other'];
 
 const LyricsPage: React.FC = () => {
   const { artist, song } = useParams<{ artist: string; song: string }>();
   const [data, setData] = useState<LyricsData | null>(null);
+  const [artistData, setArtistData] = useState<ArtistDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFav, setIsFav] = useState(false);
   const [activeTab, setActiveTab] = useState<'nepali' | 'roman'>('nepali');
   const [copied, setCopied] = useState(false);
-  const [fontSize, setFontSize] = useState(18); // Default font size in px
+  const [fontSize, setFontSize] = useState(20); // Default font size
+  const [viewCount, setViewCountState] = useState(0);
+  
+  // Presentation State
+  const [isPresenting, setIsPresenting] = useState(false);
+  const [presentationFontSize, setPresentationFontSize] = useState(32);
+  const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
+  const presentationRef = useRef<HTMLDivElement>(null);
+  
+  // Auth & Editing
+  const isAuth = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const navigate = useNavigate();
+  
+  // Extended edit form
+  const [editForm, setEditForm] = useState<LyricsData & { artist_bio?: string }>({
+      lyrics_nepali: '',
+      lyrics_roman: '',
+      composer: '',
+      lyricist: '',
+      views: 0,
+      artist_bio: '',
+      category: ''
+  });
   
   // Feedback Modal State
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
@@ -25,11 +54,32 @@ const LyricsPage: React.FC = () => {
     const fetchData = async () => {
       if (artist && song) {
         setLoading(true);
-        // Fetch Lyrics
-        const result = await getSongLyrics(artist, song);
-        setData(result);
+        
+        // Parallel Fetch
+        const [lyricsResult, artistResult] = await Promise.all([
+            getSongLyrics(artist, song),
+            getArtistDetails(artist)
+        ]);
+
+        setData(lyricsResult);
+        setArtistData(artistResult);
+
+        if (lyricsResult) {
+            setEditForm({ 
+                ...lyricsResult, 
+                views: lyricsResult.views || 0,
+                artist_bio: artistResult?.bio || '',
+                category: lyricsResult.category || 'Worship'
+            });
+            setViewCountState(lyricsResult.views || 0);
+        }
+        
         setIsFav(isFavorite(generateId('song', song, artist)));
         setLoading(false);
+        
+        // Increment View Count
+        const newCount = incrementViewCount(artist, song);
+        setViewCountState(newCount);
       }
     };
     fetchData();
@@ -58,17 +108,59 @@ const LyricsPage: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   const handleZoomIn = () => {
-    setFontSize(prev => Math.min(prev + 4, 48)); // Max 48px
+    setFontSize(prev => Math.min(prev + 4, 64));
   };
 
   const handleZoomOut = () => {
-    setFontSize(prev => Math.max(prev - 2, 14)); // Min 14px
+    setFontSize(prev => Math.max(prev - 2, 16));
   };
+
+  const togglePresentation = () => {
+      setIsPresenting(!isPresenting);
+  };
+
+  const toggleBrowserFullscreen = () => {
+      if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().then(() => setIsBrowserFullscreen(true)).catch(e => console.error(e));
+      } else {
+          document.exitFullscreen().then(() => setIsBrowserFullscreen(false));
+      }
+  };
+
+  // Keyboard Shortcuts for Presentation
+  useEffect(() => {
+      if (!isPresenting) return;
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+          if (e.key === 'Escape') {
+              if (document.fullscreenElement) document.exitFullscreen();
+              setIsPresenting(false);
+          } else if (e.key === 'f') {
+              toggleBrowserFullscreen();
+          } else if (e.key === '+' || e.key === '=') {
+              setPresentationFontSize(p => Math.min(p + 4, 96));
+          } else if (e.key === '-') {
+              setPresentationFontSize(p => Math.max(p - 4, 16));
+          } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+              // Navigation: Scroll Down
+               if (presentationRef.current) presentationRef.current.scrollTop += 150;
+          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+              // Navigation: Scroll Up
+               if (presentationRef.current) presentationRef.current.scrollTop -= 150;
+          }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPresenting]);
 
   const submitFeedback = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate API call
     setTimeout(() => {
         setFeedbackSubmitted(true);
         setTimeout(() => {
@@ -80,7 +172,40 @@ const LyricsPage: React.FC = () => {
     }, 500);
   };
 
-  // Social Sharing Links
+  // --- Admin Functions ---
+  const handleSaveEdit = () => {
+      if (!artist || !song) return;
+      
+      const { artist_bio, ...songData } = editForm;
+      saveCustomSong(artist, song, songData);
+      
+      if (editForm.views !== undefined) {
+         setViewCount(artist, song, editForm.views);
+         setViewCountState(editForm.views);
+      }
+
+      if (artist_bio && artist_bio !== artistData?.bio) {
+          const updatedArtist: ArtistDetails = {
+              name: artist,
+              bio: artist_bio,
+              topSongs: artistData?.topSongs || []
+          };
+          saveCustomArtist(artist, updatedArtist);
+          setArtistData(updatedArtist);
+      }
+
+      setData(songData);
+      setIsEditing(false);
+  };
+
+  const handleDeleteSong = () => {
+      if (!artist || !song) return;
+      if (window.confirm("Are you sure you want to delete this lyrics page?")) {
+          deleteCustomSong(artist, song);
+          navigate('/');
+      }
+  };
+
   const currentUrl = window.location.href;
   const shareTitle = `Check out "${song}" by ${artist} on SansarPlus`;
   
@@ -108,189 +233,305 @@ const LyricsPage: React.FC = () => {
   if (loading) return <Loader fullScreen text="Loading lyrics..." />;
   if (!data || !artist || !song) return <div className="text-slate-500 text-center pt-20">Lyrics not found.</div>;
 
-  return (
-    <div className="min-h-screen bg-slate-50 pb-24">
-      {/* Header - Minimalist */}
-      <div className="bg-white border-b border-slate-200 shadow-sm relative z-10">
-        <div className="max-w-4xl mx-auto px-4 py-8 md:py-10">
-          <div className="space-y-3 text-center md:text-left">
-             <Link 
-                to={`/artist/${encodeURIComponent(artist)}`} 
-                className="inline-flex items-center text-primary font-bold tracking-wide uppercase text-xs md:text-sm hover:text-primary/80 transition-colors no-print"
-             >
-                <User className="w-4 h-4 mr-2" /> {artist}
-             </Link>
-             <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-tight tracking-tight">{song}</h1>
-          </div>
-        </div>
-      </div>
+  // --- Presentation Overlay ---
+  if (isPresenting) {
+      const bgUrl = `https://picsum.photos/seed/${encodeURIComponent(song + 'worship')}/1920/1080?blur=1`;
+      return (
+        <div className="fixed inset-0 z-50 bg-black text-white flex flex-col overflow-hidden">
+             {/* Automatic Worship Wallpaper */}
+            <div className="absolute inset-0 z-0">
+               <img src={bgUrl} alt="Background" className="w-full h-full object-cover opacity-80" />
+               <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"></div>
+            </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
-         
-         {/* 1. Lyrics (Main Content) */}
-         <div className="bg-white p-6 md:p-10 rounded-2xl border border-slate-200 shadow-sm print:border-none print:p-0 print:shadow-none min-h-[400px]">
-             
-             {/* Quick Actions Toolbar inside Lyrics Card */}
-             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 no-print gap-4 sm:gap-0">
-                {/* Tabs */}
-                <div className="flex bg-slate-100 p-1 rounded-lg">
-                    <button
-                      onClick={() => setActiveTab('nepali')}
-                      className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'nepali' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      Nepali
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('roman')}
-                      className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'roman' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                      Romanized
-                    </button>
-                </div>
-
-                <div className="flex space-x-1 self-end sm:self-auto bg-slate-50 p-1 rounded-lg">
-                    <button 
-                        onClick={handleZoomOut}
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"
-                        title="Zoom Out"
-                    >
+            {/* Toolbar */}
+            <div className="flex justify-between items-center p-4 bg-black/40 backdrop-blur-md z-20 absolute top-0 left-0 right-0 border-b border-white/10">
+                <div className="text-sm font-bold text-white/80">{song} - {artist}</div>
+                <div className="flex items-center space-x-2">
+                     <button onClick={() => setPresentationFontSize(p => Math.max(p - 4, 16))} className="p-2 hover:bg-white/20 rounded-full transition-colors" title="Zoom Out (-)">
                         <ZoomOut className="w-5 h-5" />
                     </button>
-                     <button 
-                        onClick={handleZoomIn}
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"
-                        title="Zoom In"
-                    >
+                    <button onClick={() => setPresentationFontSize(p => Math.min(p + 4, 96))} className="p-2 hover:bg-white/20 rounded-full transition-colors" title="Zoom In (+)">
                         <ZoomIn className="w-5 h-5" />
                     </button>
-                    <div className="w-px bg-slate-200 mx-1 h-6 self-center"></div>
-                    <button 
-                        onClick={handleCopy}
-                        className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"
-                        title="Copy Lyrics"
-                    >
-                        {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+                     <div className="w-px h-6 bg-white/20 mx-1"></div>
+                    <button onClick={toggleBrowserFullscreen} className="p-2 hover:bg-white/20 rounded-full transition-colors" title="Toggle Fullscreen (F)">
+                       {isBrowserFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                    </button>
+                    <button onClick={() => { if(document.fullscreenElement) document.exitFullscreen(); setIsPresenting(false); }} className="p-2 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-full transition-colors" title="Exit (Esc)">
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
-             </div>
+            </div>
 
+            {/* Content */}
              <div 
-                className="whitespace-pre-wrap font-sans leading-loose text-slate-700 tracking-wide lyrics-scroll"
-                style={{ fontSize: `${fontSize}px` }}
-             >
-                 {activeTab === 'nepali' 
-                    ? (data.lyrics_nepali || data.lyrics || "Lyrics available in Romanized version only.") 
-                    : (data.lyrics_roman || "Romanized lyrics not available.")}
-             </div>
-             
-             {/* Footer in lyrics card for print */}
-             <div className="mt-8 pt-8 border-t border-slate-100 text-slate-400 text-sm hidden print-block">
-                 <p>Generated by SansarPlus.com - Nepali Christian Lyrics</p>
-             </div>
-         </div>
+                ref={presentationRef}
+                className="flex-1 overflow-y-auto no-scrollbar relative z-10 w-full scroll-smooth"
+            >
+                 <div className="w-full max-w-7xl mx-auto py-24 px-8 md:px-16 text-center">
+                    <h1 className="text-4xl md:text-6xl font-bold mb-4 text-white drop-shadow-xl">{song}</h1>
+                    <p className="text-xl md:text-2xl text-white/70 mb-16">{artist}</p>
 
-         {/* 2. Song Credits */}
-         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm no-print">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Song Credits</h3>
-            <div className="space-y-4">
-                <div className="flex items-center justify-between group py-1 border-b border-slate-50 pb-2">
-                    <div className="flex items-center text-slate-500">
-                         <Music className="w-4 h-4 mr-2.5 text-slate-400" />
-                         <span className="text-sm font-semibold">Composer</span>
-                    </div>
-                    <div className="text-right max-w-[50%] truncate">
-                        {data.composer && data.composer !== "Unknown" ? (
-                          <Link 
-                            to={`/search/Songs by ${encodeURIComponent(data.composer)}`}
-                            className="text-primary hover:text-primary/80 font-medium hover:underline transition-all text-sm"
-                            title={`Search songs by ${data.composer}`}
-                          >
-                            {data.composer}
-                          </Link>
-                        ) : <span className="text-slate-400 text-sm italic">Unknown</span>}
-                    </div>
-                </div>
-                 <div className="flex items-center justify-between group py-1">
-                    <div className="flex items-center text-slate-500">
-                         <PenTool className="w-4 h-4 mr-2.5 text-slate-400" />
-                         <span className="text-sm font-semibold">Lyrics</span>
-                    </div>
-                    <div className="text-right max-w-[50%] truncate">
-                         {data.lyricist && data.lyricist !== "Unknown" ? (
-                          <Link 
-                            to={`/search/Songs written by ${encodeURIComponent(data.lyricist)}`}
-                            className="text-primary hover:text-primary/80 font-medium hover:underline transition-all text-sm"
-                            title={`Search songs written by ${data.lyricist}`}
-                          >
-                            {data.lyricist}
-                          </Link>
-                        ) : <span className="text-slate-400 text-sm italic">Unknown</span>}
-                    </div>
-                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 w-full pb-24 text-shadow-sm">
+                       {/* Nepali */}
+                       <div className="text-center md:text-right border-r border-white/20 pr-6">
+                           <div className="whitespace-pre-wrap leading-relaxed font-sans font-medium text-white" style={{ fontSize: `${presentationFontSize}px` }}>
+                               {data.lyrics_nepali || "Nepali lyrics not available"}
+                           </div>
+                       </div>
+                       {/* Roman */}
+                       <div className="text-center md:text-left pl-6">
+                            <div className="whitespace-pre-wrap leading-relaxed font-sans text-white/90" style={{ fontSize: `${presentationFontSize}px` }}>
+                               {data.lyrics_roman || "Romanized lyrics not available"}
+                           </div>
+                       </div>
+                   </div>
+                 </div>
             </div>
         </div>
+      );
+  }
 
-        {/* 3. Artist Navigation */}
-         <div className="bg-gradient-to-br from-indigo-50/50 to-purple-50/50 p-1.5 rounded-2xl border border-indigo-50/50 shadow-sm no-print">
+  return (
+    <div className="min-h-screen bg-slate-50 pb-24 font-sans">
+      
+      {/* 1. Immersive Hero Header */}
+      <div className="relative bg-slate-900 text-white pb-24 pt-24 md:pt-32 px-4 overflow-hidden shadow-lg no-print">
+         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-slate-900 to-black z-0"></div>
+         {/* Decorative Abstract blobs */}
+         <div className="absolute top-[-20%] right-[-10%] w-[400px] h-[400px] bg-purple-600/20 rounded-full blur-[100px]"></div>
+         <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] bg-blue-600/20 rounded-full blur-[100px]"></div>
+
+         <div className="relative z-10 max-w-4xl mx-auto text-center">
+            
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight mb-4 drop-shadow-2xl">
+                {song}
+            </h1>
+            
             <Link 
-                to={`/artist/${encodeURIComponent(artist)}`}
-                className="flex items-center justify-between w-full p-4 bg-white/60 hover:bg-white rounded-xl transition-all group"
+                to={`/artist/${encodeURIComponent(artist)}`} 
+                className="inline-flex items-center text-xl md:text-2xl text-slate-300 hover:text-white transition-colors font-medium border-b border-transparent hover:border-white/50 pb-1"
             >
-                <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary mr-3 group-hover:bg-primary group-hover:text-white transition-colors shadow-sm">
-                        <User className="w-5 h-5" />
+                <User className="w-5 h-5 mr-2" /> {artist}
+            </Link>
+
+         </div>
+      </div>
+
+      <div className="max-w-3xl mx-auto px-4 -mt-16 relative z-20 space-y-8">
+         
+         {/* Admin Panel */}
+         {isAuth && (
+            <div className="bg-white rounded-xl shadow-lg p-2 mb-4 flex justify-between items-center no-print">
+               <span className="text-xs font-bold text-slate-400 px-3 uppercase">Admin Controls</span>
+               <div className="flex gap-2">
+                  {isEditing ? (
+                      <>
+                        <button onClick={handleSaveEdit} className="bg-green-500 text-white p-2 rounded-lg hover:bg-green-600"><Save className="w-5 h-5" /></button>
+                        <button onClick={() => setIsEditing(false)} className="bg-slate-500 text-white p-2 rounded-lg hover:bg-slate-600"><X className="w-5 h-5" /></button>
+                      </>
+                  ) : (
+                      <>
+                        <button onClick={() => setIsEditing(true)} className="bg-primary text-white p-2 rounded-lg hover:bg-primary/90"><Edit className="w-5 h-5" /></button>
+                        <button onClick={handleDeleteSong} className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600"><Trash2 className="w-5 h-5" /></button>
+                      </>
+                  )}
+               </div>
+            </div>
+         )}
+
+         {isEditing && (
+             <div className="bg-yellow-50 p-6 rounded-2xl border border-yellow-200 shadow-sm animate-in slide-in-from-top-4">
+                <h3 className="font-bold text-yellow-800 mb-4 border-b border-yellow-200 pb-2">Edit Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Views</label>
+                        <input type="number" className="w-full border p-2 rounded" value={editForm.views} onChange={e => setEditForm({...editForm, views: parseInt(e.target.value) || 0})} />
                     </div>
-                    <div className="text-left">
-                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-0.5">More from</p>
-                        <p className="text-sm font-bold text-slate-900 group-hover:text-primary transition-colors">{artist}</p>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-500 mb-1 flex items-center"><Eye className="w-4 h-4 mr-1"/> Initial Views</label>
+                        <select className="w-full border p-2 rounded bg-white" value={editForm.category || ''} onChange={e => setEditForm({...editForm, category: e.target.value})}>
+                            <option value="">Select...</option>
+                            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+                    <div className="col-span-1 md:col-span-2">
+                        <label className="block text-sm font-bold text-slate-500 mb-1">Artist Bio</label>
+                        <textarea className="w-full border p-2 rounded h-24" value={editForm.artist_bio || ''} onChange={e => setEditForm({...editForm, artist_bio: e.target.value})} placeholder="Update artist biography..."></textarea>
                     </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+             </div>
+         )}
+
+         {/* 2. Main Lyrics Card (Glassmorphism Effect) */}
+         <div className="bg-white/90 backdrop-blur-xl p-6 md:p-12 rounded-3xl shadow-2xl border border-white/50 print:border-none print:shadow-none print:p-0">
+             
+             {/* Toolbar */}
+             {!isEditing && (
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4 border-b border-slate-100 pb-6 no-print">
+                    <div className="flex bg-slate-100 p-1.5 rounded-xl shadow-inner">
+                        <button
+                            onClick={() => setActiveTab('nepali')}
+                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'nepali' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                        Nepali
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('roman')}
+                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'roman' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                        Romanized
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+                        <button onClick={togglePresentation} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors" title="Presentation Mode">
+                            <Monitor className="w-5 h-5" />
+                        </button>
+                        <span className="text-xs font-mono text-slate-300">|</span>
+                        <button onClick={handleZoomOut} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors"><ZoomOut className="w-5 h-5" /></button>
+                        <span className="text-xs font-mono text-slate-300">|</span>
+                        <button onClick={handleZoomIn} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors"><ZoomIn className="w-5 h-5" /></button>
+                        <span className="text-xs font-mono text-slate-300">|</span>
+                        <button onClick={handlePrint} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors"><Printer className="w-5 h-5" /></button>
+                        <span className="text-xs font-mono text-slate-300">|</span>
+                        <button onClick={handleCopy} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors">
+                            {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+                        </button>
+                    </div>
+                </div>
+             )}
+
+             {isEditing ? (
+                 <div className="space-y-6">
+                     <div>
+                         <label className="block text-sm font-bold text-slate-500 mb-1">Nepali Lyrics</label>
+                         <textarea className="w-full h-64 p-4 border rounded-xl font-sans bg-slate-50 focus:bg-white transition-colors" value={editForm.lyrics_nepali || ''} onChange={e => setEditForm({...editForm, lyrics_nepali: e.target.value})} />
+                     </div>
+                     <div>
+                         <label className="block text-sm font-bold text-slate-500 mb-1">Romanized Lyrics</label>
+                         <textarea className="w-full h-64 p-4 border rounded-xl font-sans bg-slate-50 focus:bg-white transition-colors" value={editForm.lyrics_roman || ''} onChange={e => setEditForm({...editForm, lyrics_roman: e.target.value})} />
+                     </div>
+                 </div>
+             ) : (
+                <div 
+                    className="whitespace-pre-wrap font-sans leading-loose text-slate-800 tracking-wide lyrics-scroll"
+                    style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
+                >
+                    {activeTab === 'nepali' 
+                        ? (data.lyrics_nepali || data.lyrics || "Lyrics available in Romanized version only.") 
+                        : (data.lyrics_roman || "Romanized lyrics not available.")}
+                </div>
+             )}
+         </div>
+
+         {/* 3. Song Credits Card */}
+         <div className="bg-white p-8 rounded-3xl shadow-lg border border-slate-100 no-print">
+            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-6">Production Credits</h3>
+            
+            {isEditing ? (
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <div>
+                         <label className="block text-sm font-bold text-slate-500 mb-1">Composer</label>
+                         <input type="text" className="w-full border p-3 rounded-lg bg-slate-50" value={editForm.composer} onChange={e => setEditForm({...editForm, composer: e.target.value})} />
+                     </div>
+                     <div>
+                         <label className="block text-sm font-bold text-slate-500 mb-1">Lyricist</label>
+                         <input type="text" className="w-full border p-3 rounded-lg bg-slate-50" value={editForm.lyricist} onChange={e => setEditForm({...editForm, lyricist: e.target.value})} />
+                     </div>
+                 </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="flex items-start space-x-4 p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <div className="p-3 bg-white rounded-full shadow-sm text-indigo-500"><Music className="w-5 h-5" /></div>
+                        <div>
+                            <p className="text-xs text-slate-400 font-bold uppercase mb-1">Composer</p>
+                            {data.composer && data.composer !== "Unknown" ? (
+                            <Link to={`/artist/${encodeURIComponent(data.composer)}`} className="text-slate-900 font-bold hover:text-primary transition-colors block">
+                                {data.composer}
+                            </Link>
+                            ) : <span className="text-slate-400 text-sm italic">Unknown</span>}
+                        </div>
+                    </div>
+                    <div className="flex items-start space-x-4 p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <div className="p-3 bg-white rounded-full shadow-sm text-purple-500"><PenTool className="w-5 h-5" /></div>
+                        <div>
+                             <p className="text-xs text-slate-400 font-bold uppercase mb-1">Lyrics By</p>
+                            {data.lyricist && data.lyricist !== "Unknown" ? (
+                            <Link to={`/artist/${encodeURIComponent(data.lyricist)}`} className="text-slate-900 font-bold hover:text-primary transition-colors block">
+                                {data.lyricist}
+                            </Link>
+                            ) : <span className="text-slate-400 text-sm italic">Unknown</span>}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {!isEditing && data.category && (
+                <div className="mt-6 pt-6 border-t border-slate-100 flex items-center">
+                    <div className="p-2 bg-indigo-50 rounded-lg text-indigo-500 mr-3">
+                        <Tag className="w-4 h-4" />
+                    </div>
+                    <div>
+                        <p className="text-xs text-slate-400 font-bold uppercase mb-0.5">Category</p>
+                        <p className="text-slate-900 font-bold">{data.category}</p>
+                    </div>
+                </div>
+            )}
+        </div>
+
+        {/* 4. More From Artist */}
+         <div className="bg-gradient-to-r from-indigo-500 to-purple-500 p-[2px] rounded-3xl shadow-lg no-print group">
+            <Link 
+                to={`/artist/${encodeURIComponent(artist)}`}
+                className="flex items-center justify-between w-full p-6 bg-white rounded-[22px] hover:bg-transparent hover:text-white transition-all duration-300"
+            >
+                <div className="flex items-center">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-900 mr-4 group-hover:bg-white/20 group-hover:text-white transition-colors">
+                        <User className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs text-slate-400 group-hover:text-white/70 font-bold uppercase tracking-wider mb-1">More from</p>
+                        <p className="text-lg font-bold text-slate-900 group-hover:text-white">{artist}</p>
+                    </div>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-slate-50 group-hover:bg-white/20 flex items-center justify-center">
+                    <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
+                </div>
             </Link>
         </div>
 
-        {/* 4. Tools (Favorites, Share, Feedback) */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm no-print">
-            <button 
+        {/* 5. Bottom Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 no-print">
+             <button 
                 onClick={handleFavorite}
-                className={`w-full flex items-center justify-center space-x-2 py-3.5 rounded-xl font-bold transition-all ${
+                className={`flex items-center justify-center space-x-3 py-4 rounded-2xl font-bold transition-all shadow-md ${
                     isFav 
-                    ? 'bg-red-50 text-red-500 border border-red-100 shadow-sm' 
-                    : 'bg-slate-900 text-white hover:bg-slate-800 shadow-md hover:shadow-lg transform hover:-translate-y-0.5'
+                    ? 'bg-red-50 text-red-500 border-2 border-red-100 hover:bg-red-100' 
+                    : 'bg-white text-slate-900 hover:bg-slate-50 border border-slate-200'
                 }`}
             >
-                <Heart className={`w-5 h-5 ${isFav ? 'fill-current' : ''}`} />
-                <span>{isFav ? 'Saved to Favorites' : 'Add to Favorites'}</span>
+                <Heart className={`w-6 h-6 ${isFav ? 'fill-current' : ''}`} />
+                <span>{isFav ? 'Saved' : 'Add to Favorites'}</span>
             </button>
 
-            {/* Social Share Row */}
-            <div className="mt-5 pt-4 border-t border-slate-100">
-                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">Share to Socials</p>
-                 <div className="flex justify-center gap-3">
-                    {socialLinks.map((link) => (
-                        <a 
-                            key={link.name}
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all hover:scale-110 ${link.color}`}
-                            title={`Share on ${link.name}`}
-                        >
-                            {link.icon}
-                        </a>
-                    ))}
-                 </div>
-            </div>
-
-            {/* Report Issue Button */}
-            <div className="mt-6 text-center">
-                <button 
-                    onClick={() => setIsFeedbackOpen(true)}
-                    className="text-xs text-slate-400 hover:text-slate-600 flex items-center justify-center mx-auto space-x-1"
-                >
-                    <Flag className="w-3 h-3" />
-                    <span>Report an issue with this song</span>
-                </button>
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-around">
+                 {socialLinks.map((link) => (
+                    <a 
+                        key={link.name}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all hover:scale-110 shadow-sm ${link.color}`}
+                        title={`Share on ${link.name}`}
+                    >
+                        {link.icon}
+                    </a>
+                ))}
+                 <button onClick={() => setIsFeedbackOpen(true)} className="w-12 h-12 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-all" title="Report Issue">
+                     <Flag className="w-5 h-5" />
+                 </button>
             </div>
         </div>
 
@@ -298,31 +539,31 @@ const LyricsPage: React.FC = () => {
 
       {/* Feedback Modal */}
       {isFeedbackOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <h3 className="font-bold text-slate-800">Report Issue</h3>
-                    <button onClick={() => setIsFeedbackOpen(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <h3 className="font-bold text-slate-800 text-lg">Report Issue</h3>
+                    <button onClick={() => setIsFeedbackOpen(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-full shadow-sm">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
                 
                 {feedbackSubmitted ? (
-                    <div className="p-8 text-center">
-                        <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <Check className="w-6 h-6" />
+                    <div className="p-12 text-center">
+                        <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                            <Check className="w-8 h-8" />
                         </div>
-                        <h4 className="font-bold text-slate-800">Thank You!</h4>
-                        <p className="text-slate-500 text-sm mt-1">Your feedback has been received and will be reviewed.</p>
+                        <h4 className="font-bold text-xl text-slate-800 mb-2">Thank You!</h4>
+                        <p className="text-slate-500">Your feedback helps us improve.</p>
                     </div>
                 ) : (
-                    <form onSubmit={submitFeedback} className="p-6 space-y-4">
+                    <form onSubmit={submitFeedback} className="p-6 space-y-5">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Issue Type</label>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Issue Type</label>
                             <select 
                                 value={feedbackType} 
                                 onChange={(e) => setFeedbackType(e.target.value)}
-                                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-primary focus:border-primary outline-none"
+                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-slate-50"
                             >
                                 <option value="lyrics">Wrong Lyrics</option>
                                 <option value="credits">Wrong Credits</option>
@@ -331,31 +572,22 @@ const LyricsPage: React.FC = () => {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Details</label>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Details</label>
                             <textarea 
                                 value={feedbackText}
                                 onChange={(e) => setFeedbackText(e.target.value)}
                                 rows={4} 
                                 placeholder="Please describe the issue..."
-                                className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-primary focus:border-primary outline-none resize-none"
+                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-slate-50"
                                 required
                             ></textarea>
                         </div>
-                        <div className="pt-2 flex space-x-3">
-                            <button 
-                                type="button" 
-                                onClick={() => setIsFeedbackOpen(false)}
-                                className="flex-1 py-2.5 rounded-lg border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button 
-                                type="submit" 
-                                className="flex-1 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
-                            >
-                                Submit Report
-                            </button>
-                        </div>
+                        <button 
+                            type="submit" 
+                            className="w-full py-4 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/30 transform active:scale-95"
+                        >
+                            Submit Report
+                        </button>
                     </form>
                 )}
             </div>

@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { LyricsData, SearchResult, ArtistDetails, HomeData } from "../types";
+import { getCustomSong, getCustomArtist, getViewCount } from "../utils/dataManager";
 
 // Note: We instantiate the client inside each function to ensure we pick up the latest 
 // process.env.API_KEY, which resolves potential race conditions or 403 errors 
@@ -142,11 +143,17 @@ export const searchMusic = async (query: string): Promise<SearchResult[]> => {
 };
 
 export const getArtistDetails = async (artistName: string): Promise<ArtistDetails | null> => {
+  // Check local override first
+  const localData = getCustomArtist(artistName);
+  if (localData) {
+    return localData;
+  }
+
    try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Provide detailed info for the Nepali Christian artist or band "${artistName}". Include a bio, their music genre, and a list of their 10 most popular songs.`,
+      contents: `Provide detailed info for the Nepali Christian artist or band "${artistName}". Include a bio and a list of their 10 most popular songs.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -154,7 +161,6 @@ export const getArtistDetails = async (artistName: string): Promise<ArtistDetail
           properties: {
             name: { type: Type.STRING },
             bio: { type: Type.STRING },
-            genre: { type: Type.STRING },
             topSongs: { type: Type.ARRAY, items: { type: Type.STRING } }
           }
         }
@@ -168,12 +174,22 @@ export const getArtistDetails = async (artistName: string): Promise<ArtistDetail
 };
 
 export const getSongLyrics = async (artist: string, title: string): Promise<LyricsData | null> => {
+  // Get Views from persistent storage
+  const currentViews = getViewCount(artist, title);
+
+  // Check local override first for song data
+  const localData = getCustomSong(artist, title);
+  if (localData) {
+    return { ...localData, views: currentViews };
+  }
+
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Generate the full lyrics for the Nepali Christian song "${title}" by "${artist}". 
       If available, include the names of the Composer(s) and Lyricist(s) from the Nepali Christian community.
+      Also identify the best fitting 'category' or genre (e.g., Worship, Hymn, Pop, Rock, Folk).
       Please provide two versions of the lyrics:
       1. 'lyrics_roman': The lyrics in Romanized Nepali (English alphabet).
       2. 'lyrics_nepali': The lyrics in traditional Nepali script (Devanagari).
@@ -186,12 +202,18 @@ export const getSongLyrics = async (artist: string, title: string): Promise<Lyri
             lyrics_roman: { type: Type.STRING },
             lyrics_nepali: { type: Type.STRING },
             composer: { type: Type.STRING },
-            lyricist: { type: Type.STRING }
+            lyricist: { type: Type.STRING },
+            category: { type: Type.STRING }
           }
         }
       }
     });
-    return cleanAndParseJSON(response.text);
+    
+    const apiData = cleanAndParseJSON(response.text);
+    if (apiData) {
+        return { ...apiData, views: currentViews };
+    }
+    return null;
   } catch (error) {
     console.error("Error fetching lyrics:", error);
     return null;

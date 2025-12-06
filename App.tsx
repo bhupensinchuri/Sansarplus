@@ -11,6 +11,8 @@ import MenuPage from './pages/MenuPage';
 import FavoritesPage from './pages/FavoritesPage';
 import CategoriesPage from './pages/CategoriesPage';
 import ContactPage from './pages/ContactPage';
+import LoginPage from './pages/LoginPage';
+import AdminDashboard from './pages/AdminDashboard';
 import Loader from './components/Loader';
 import { Key } from 'lucide-react';
 
@@ -92,6 +94,10 @@ const App: React.FC = () => {
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/categories" element={<CategoriesPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          
+          {/* Admin Routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
           {/* Search & Details */}
           <Route path="/search" element={<SearchPage />} />
