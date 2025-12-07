@@ -1,3 +1,5 @@
+import { getCurrentUser } from './auth';
+
 export interface FavoriteItem {
   id: string; // "artist-Name" or "song-Title-Artist"
   type: 'artist' | 'song';
@@ -5,11 +7,18 @@ export interface FavoriteItem {
   subtext: string; // Artist for songs, Genre for artists (if available)
 }
 
-const STORAGE_KEY = 'lyricvault_favorites';
+// Helper to get storage key based on current user
+const getStorageKey = () => {
+  const user = getCurrentUser();
+  if (user) {
+    return `lyricvault_favorites_${user.username}`;
+  }
+  return 'lyricvault_favorites_guest'; // Fallback for non-logged in users
+};
 
 export const getFavorites = (): FavoriteItem[] => {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(getStorageKey());
     return stored ? JSON.parse(stored) : [];
   } catch (e) {
     return [];
@@ -32,7 +41,7 @@ export const toggleFavorite = (item: FavoriteItem): boolean => {
     newFavorites = [...favorites, item];
   }
   
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(newFavorites));
+  localStorage.setItem(getStorageKey(), JSON.stringify(newFavorites));
   return !exists; // Returns true if added, false if removed
 };
 

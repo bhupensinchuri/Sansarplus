@@ -17,7 +17,8 @@ export interface LyricsData {
   lyrics_roman?: string;
   lyrics_nepali?: string;
   views?: number;
-  category?: string; // Genre/Style
+  category?: string; // Legacy Genre/Style
+  categories?: string[]; // New Multi-select Genres
 }
 
 export interface SearchResult {
@@ -43,6 +44,7 @@ export interface Banner {
   imageUrl: string;
   title: string; // Verse text
   subtitle: string; // Verse reference
+  link?: string; // Optional URL to navigate to
 }
 
 declare global {

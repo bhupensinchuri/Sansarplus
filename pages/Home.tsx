@@ -1,12 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ChevronRight, Music, Disc, Mic2, ArrowRight, Play, Star, ChevronLeft } from 'lucide-react';
+import { Search, ChevronRight, Music, Disc, Mic2, ArrowRight, Play, Star, ChevronLeft, Database } from 'lucide-react';
 import { getTrendingContent } from '../services/geminiService';
 import Loader from '../components/Loader';
 import AlphabetNav from '../components/AlphabetNav';
 import { HomeData, Banner } from '../types';
-import { getBanners } from '../utils/dataManager';
+import { getBanners, getAllCustomSongs } from '../utils/dataManager';
 
 const Home: React.FC = () => {
   const [data, setData] = useState<HomeData | null>(null);
@@ -14,6 +14,7 @@ const Home: React.FC = () => {
   const [searchInput, setSearchInput] = useState('');
   const [banners, setBanners] = useState<Banner[]>([]);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [totalSongs, setTotalSongs] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,6 +22,9 @@ const Home: React.FC = () => {
       const trendingResult = await getTrendingContent();
       setData(trendingResult);
       setBanners(getBanners());
+      // Get count of locally added songs
+      const customSongs = getAllCustomSongs();
+      setTotalSongs(customSongs.length);
       setLoading(false);
     };
     fetchData();
@@ -81,6 +85,14 @@ const Home: React.FC = () => {
                   Connect with God through music. Discover the largest collection of Nepali Christian lyrics, hymns, and chords.
               </p>
 
+              {/* Stats Section */}
+              <div className="flex items-center justify-center gap-6 text-sm md:text-base text-slate-400 mt-4">
+                  <div className="flex items-center bg-white/5 rounded-full px-4 py-1 border border-white/10">
+                      <Database className="w-4 h-4 mr-2 text-indigo-400" />
+                      <span className="font-bold text-white mr-1">{totalSongs}</span> Songs Added
+                  </div>
+              </div>
+
               {/* Integrated Search Bar */}
               <div className="max-w-2xl mx-auto mt-8 relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
@@ -111,24 +123,40 @@ const Home: React.FC = () => {
             {banners.length > 0 && (
                 <>
                     {/* Slides */}
-                    {banners.map((banner, idx) => (
-                        <div 
-                            key={banner.id}
-                            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === currentBannerIndex ? 'opacity-100' : 'opacity-0'}`}
-                        >
-                            <img src={banner.imageUrl} alt="Worship Background" className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/40 bg-gradient-to-t from-black/80 to-transparent flex flex-col items-center justify-center text-center p-8">
-                                <p className="text-xl md:text-3xl lg:text-4xl font-serif text-white leading-relaxed max-w-4xl drop-shadow-lg italic">
-                                    "{banner.title}"
-                                </p>
-                                {banner.subtitle && (
-                                    <p className="mt-4 text-lg md:text-xl font-bold text-white/90 uppercase tracking-widest">
-                                        — {banner.subtitle}
+                    {banners.map((banner, idx) => {
+                        const Content = (
+                             <>
+                                <img src={banner.imageUrl} alt="Worship Background" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/40 bg-gradient-to-t from-black/80 to-transparent flex flex-col items-center justify-center text-center p-8">
+                                    <p className="text-xl md:text-3xl lg:text-4xl font-serif text-white leading-relaxed max-w-4xl drop-shadow-lg italic">
+                                        "{banner.title}"
                                     </p>
+                                    {banner.subtitle && (
+                                        <p className="mt-4 text-lg md:text-xl font-bold text-white/90 uppercase tracking-widest">
+                                            — {banner.subtitle}
+                                        </p>
+                                    )}
+                                </div>
+                             </>
+                        );
+
+                        return (
+                            <div 
+                                key={banner.id}
+                                className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === currentBannerIndex ? 'opacity-100' : 'opacity-0'}`}
+                            >
+                                {banner.link ? (
+                                    <a href={banner.link} target="_blank" rel="noopener noreferrer" className="block w-full h-full relative cursor-pointer">
+                                        {Content}
+                                    </a>
+                                ) : (
+                                    <div className="w-full h-full relative">
+                                        {Content}
+                                    </div>
                                 )}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                     
                     {/* Controls */}
                     <button onClick={prevBanner} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100">

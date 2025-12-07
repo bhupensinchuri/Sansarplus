@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Music2, User, Phone, ListMusic, Grid, Lock, ShieldCheck } from 'lucide-react';
+import { Music2, User, Phone, ListMusic, Grid, Lock, ShieldCheck, HeartHandshake } from 'lucide-react';
 import { useAuth } from '../utils/auth';
 
 const MenuPage: React.FC = () => {
@@ -27,6 +27,14 @@ const MenuPage: React.FC = () => {
         icon: Grid, 
         path: '/categories', 
         gradient: 'from-emerald-500 to-teal-500' 
+    },
+    { 
+        title: 'Donate', 
+        description: 'Support our free library',
+        icon: HeartHandshake, 
+        path: 'https://www.paypal.com/donate/?business=GMLA7WGYWRSNJ&no_recurring=0&item_name=Your+donations+help+us+maintain+and+expand+this+free+library+of+SansarPlus.+Every+contribution+makes+a+difference%21&currency_code=USD', 
+        gradient: 'from-rose-500 to-pink-600',
+        external: true
     },
     { 
         title: 'Contact Us', 
@@ -58,13 +66,9 @@ const MenuPage: React.FC = () => {
         <p className="text-slate-500 mb-8">Explore SansarPlus</p>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {menuItems.map((item, idx) => (
-            <Link 
-              key={idx} 
-              to={item.path}
-              className="group relative overflow-hidden rounded-3xl p-6 bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
-            >
-               {/* Hover Gradient Overlay */}
+          {menuItems.map((item, idx) => {
+            const content = (
+               <>
                <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300`}></div>
                
                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${item.gradient} flex items-center justify-center text-white shadow-md mb-4 group-hover:scale-110 transition-transform duration-300`}>
@@ -73,8 +77,35 @@ const MenuPage: React.FC = () => {
                
                <h3 className="text-xl font-bold text-slate-900 mb-1 group-hover:text-primary transition-colors">{item.title}</h3>
                <p className="text-sm text-slate-500">{item.description}</p>
-            </Link>
-          ))}
+               </>
+            );
+
+            const commonClasses = "group relative overflow-hidden rounded-3xl p-6 bg-white border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300";
+
+            if (item.external) {
+                return (
+                    <a 
+                        key={idx}
+                        href={item.path}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={commonClasses}
+                    >
+                        {content}
+                    </a>
+                );
+            }
+
+            return (
+                <Link 
+                  key={idx} 
+                  to={item.path}
+                  className={commonClasses}
+                >
+                   {content}
+                </Link>
+            );
+          })}
 
           {/* Admin Card */}
           <Link 

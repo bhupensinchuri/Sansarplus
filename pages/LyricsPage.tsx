@@ -1,15 +1,13 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getSongLyrics, getArtistDetails } from '../services/geminiService';
 import { LyricsData, ArtistDetails } from '../types';
 import Loader from '../components/Loader';
-import { User, Heart, Music, PenTool, Copy, Check, ArrowRight, ZoomIn, ZoomOut, Flag, X, Edit, Trash2, Save, Printer, Eye, Tag, Monitor, Maximize, Minimize } from 'lucide-react';
+import { User, Heart, Music, PenTool, Copy, Check, ArrowRight, ZoomIn, ZoomOut, Flag, X, Edit, Trash2, Save, Printer, Tag } from 'lucide-react';
 import { isFavorite, toggleFavorite, generateId } from '../utils/storage';
 import { useAuth } from '../utils/auth';
-import { saveCustomSong, deleteCustomSong, incrementViewCount, setViewCount, saveCustomArtist } from '../utils/dataManager';
-
-const CATEGORIES = ['Worship', 'Praise', 'Hymn', 'Pop', 'Rock', 'Folk', 'Gospel', 'Contemporary', 'Kids', 'Christmas', 'Other'];
+import { saveCustomSong, deleteCustomSong, incrementViewCount, setViewCount, saveCustomArtist, getCategories } from '../utils/dataManager';
 
 const LyricsPage: React.FC = () => {
   const { artist, song } = useParams<{ artist: string; song: string }>();
@@ -20,13 +18,7 @@ const LyricsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'nepali' | 'roman'>('nepali');
   const [copied, setCopied] = useState(false);
   const [fontSize, setFontSize] = useState(20); // Default font size
-  const [viewCount, setViewCountState] = useState(0);
-  
-  // Presentation State
-  const [isPresenting, setIsPresenting] = useState(false);
-  const [presentationFontSize, setPresentationFontSize] = useState(32);
-  const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
-  const presentationRef = useRef<HTMLDivElement>(null);
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   
   // Auth & Editing
   const isAuth = useAuth();
@@ -41,7 +33,8 @@ const LyricsPage: React.FC = () => {
       lyricist: '',
       views: 0,
       artist_bio: '',
-      category: ''
+      category: '',
+      categories: []
   });
   
   // Feedback Modal State
@@ -54,6 +47,7 @@ const LyricsPage: React.FC = () => {
     const fetchData = async () => {
       if (artist && song) {
         setLoading(true);
+        setAvailableCategories(getCategories());
         
         // Parallel Fetch
         const [lyricsResult, artistResult] = await Promise.all([
@@ -65,21 +59,26 @@ const LyricsPage: React.FC = () => {
         setArtistData(artistResult);
 
         if (lyricsResult) {
+            // Handle legacy category vs new categories array
+            let initialCats = lyricsResult.categories || [];
+            if (initialCats.length === 0 && lyricsResult.category) {
+                initialCats = [lyricsResult.category];
+            }
+
             setEditForm({ 
                 ...lyricsResult, 
                 views: lyricsResult.views || 0,
                 artist_bio: artistResult?.bio || '',
-                category: lyricsResult.category || 'Worship'
+                category: lyricsResult.category || 'Worship',
+                categories: initialCats
             });
-            setViewCountState(lyricsResult.views || 0);
         }
         
         setIsFav(isFavorite(generateId('song', song, artist)));
         setLoading(false);
         
-        // Increment View Count
-        const newCount = incrementViewCount(artist, song);
-        setViewCountState(newCount);
+        // Keep tracking views in background, but don't display
+        incrementViewCount(artist, song);
       }
     };
     fetchData();
@@ -120,45 +119,6 @@ const LyricsPage: React.FC = () => {
     setFontSize(prev => Math.max(prev - 2, 16));
   };
 
-  const togglePresentation = () => {
-      setIsPresenting(!isPresenting);
-  };
-
-  const toggleBrowserFullscreen = () => {
-      if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().then(() => setIsBrowserFullscreen(true)).catch(e => console.error(e));
-      } else {
-          document.exitFullscreen().then(() => setIsBrowserFullscreen(false));
-      }
-  };
-
-  // Keyboard Shortcuts for Presentation
-  useEffect(() => {
-      if (!isPresenting) return;
-
-      const handleKeyDown = (e: KeyboardEvent) => {
-          if (e.key === 'Escape') {
-              if (document.fullscreenElement) document.exitFullscreen();
-              setIsPresenting(false);
-          } else if (e.key === 'f') {
-              toggleBrowserFullscreen();
-          } else if (e.key === '+' || e.key === '=') {
-              setPresentationFontSize(p => Math.min(p + 4, 96));
-          } else if (e.key === '-') {
-              setPresentationFontSize(p => Math.max(p - 4, 16));
-          } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-              // Navigation: Scroll Down
-               if (presentationRef.current) presentationRef.current.scrollTop += 150;
-          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-              // Navigation: Scroll Up
-               if (presentationRef.current) presentationRef.current.scrollTop -= 150;
-          }
-      };
-
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPresenting]);
-
   const submitFeedback = (e: React.FormEvent) => {
     e.preventDefault();
     setTimeout(() => {
@@ -179,9 +139,9 @@ const LyricsPage: React.FC = () => {
       const { artist_bio, ...songData } = editForm;
       saveCustomSong(artist, song, songData);
       
+      // Still allow saving views if they were edited via form state, even if hidden
       if (editForm.views !== undefined) {
          setViewCount(artist, song, editForm.views);
-         setViewCountState(editForm.views);
       }
 
       if (artist_bio && artist_bio !== artistData?.bio) {
@@ -196,6 +156,17 @@ const LyricsPage: React.FC = () => {
 
       setData(songData);
       setIsEditing(false);
+  };
+
+  const toggleCategorySelection = (cat: string) => {
+      setEditForm(prev => {
+          const cats = prev.categories || [];
+          if (cats.includes(cat)) {
+              return { ...prev, categories: cats.filter(c => c !== cat) };
+          } else {
+              return { ...prev, categories: [...cats, cat] };
+          }
+      });
   };
 
   const handleDeleteSong = () => {
@@ -233,65 +204,10 @@ const LyricsPage: React.FC = () => {
   if (loading) return <Loader fullScreen text="Loading lyrics..." />;
   if (!data || !artist || !song) return <div className="text-slate-500 text-center pt-20">Lyrics not found.</div>;
 
-  // --- Presentation Overlay ---
-  if (isPresenting) {
-      const bgUrl = `https://picsum.photos/seed/${encodeURIComponent(song + 'worship')}/1920/1080?blur=1`;
-      return (
-        <div className="fixed inset-0 z-50 bg-black text-white flex flex-col overflow-hidden">
-             {/* Automatic Worship Wallpaper */}
-            <div className="absolute inset-0 z-0">
-               <img src={bgUrl} alt="Background" className="w-full h-full object-cover opacity-80" />
-               <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"></div>
-            </div>
-
-            {/* Toolbar */}
-            <div className="flex justify-between items-center p-4 bg-black/40 backdrop-blur-md z-20 absolute top-0 left-0 right-0 border-b border-white/10">
-                <div className="text-sm font-bold text-white/80">{song} - {artist}</div>
-                <div className="flex items-center space-x-2">
-                     <button onClick={() => setPresentationFontSize(p => Math.max(p - 4, 16))} className="p-2 hover:bg-white/20 rounded-full transition-colors" title="Zoom Out (-)">
-                        <ZoomOut className="w-5 h-5" />
-                    </button>
-                    <button onClick={() => setPresentationFontSize(p => Math.min(p + 4, 96))} className="p-2 hover:bg-white/20 rounded-full transition-colors" title="Zoom In (+)">
-                        <ZoomIn className="w-5 h-5" />
-                    </button>
-                     <div className="w-px h-6 bg-white/20 mx-1"></div>
-                    <button onClick={toggleBrowserFullscreen} className="p-2 hover:bg-white/20 rounded-full transition-colors" title="Toggle Fullscreen (F)">
-                       {isBrowserFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-                    </button>
-                    <button onClick={() => { if(document.fullscreenElement) document.exitFullscreen(); setIsPresenting(false); }} className="p-2 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-full transition-colors" title="Exit (Esc)">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
-            </div>
-
-            {/* Content */}
-             <div 
-                ref={presentationRef}
-                className="flex-1 overflow-y-auto no-scrollbar relative z-10 w-full scroll-smooth"
-            >
-                 <div className="w-full max-w-7xl mx-auto py-24 px-8 md:px-16 text-center">
-                    <h1 className="text-4xl md:text-6xl font-bold mb-4 text-white drop-shadow-xl">{song}</h1>
-                    <p className="text-xl md:text-2xl text-white/70 mb-16">{artist}</p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 w-full pb-24 text-shadow-sm">
-                       {/* Nepali */}
-                       <div className="text-center md:text-right border-r border-white/20 pr-6">
-                           <div className="whitespace-pre-wrap leading-relaxed font-sans font-medium text-white" style={{ fontSize: `${presentationFontSize}px` }}>
-                               {data.lyrics_nepali || "Nepali lyrics not available"}
-                           </div>
-                       </div>
-                       {/* Roman */}
-                       <div className="text-center md:text-left pl-6">
-                            <div className="whitespace-pre-wrap leading-relaxed font-sans text-white/90" style={{ fontSize: `${presentationFontSize}px` }}>
-                               {data.lyrics_roman || "Romanized lyrics not available"}
-                           </div>
-                       </div>
-                   </div>
-                 </div>
-            </div>
-        </div>
-      );
-  }
+  // Determine categories to show
+  const displayCategories = data.categories && data.categories.length > 0 
+      ? data.categories 
+      : (data.category ? [data.category] : []);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 font-sans">
@@ -315,7 +231,6 @@ const LyricsPage: React.FC = () => {
             >
                 <User className="w-5 h-5 mr-2" /> {artist}
             </Link>
-
          </div>
       </div>
 
@@ -345,20 +260,24 @@ const LyricsPage: React.FC = () => {
              <div className="bg-yellow-50 p-6 rounded-2xl border border-yellow-200 shadow-sm animate-in slide-in-from-top-4">
                 <h3 className="font-bold text-yellow-800 mb-4 border-b border-yellow-200 pb-2">Edit Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Views</label>
-                        <input type="number" className="w-full border p-2 rounded" value={editForm.views} onChange={e => setEditForm({...editForm, views: parseInt(e.target.value) || 0})} />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-slate-500 mb-1 flex items-center"><Eye className="w-4 h-4 mr-1"/> Initial Views</label>
-                        <select className="w-full border p-2 rounded bg-white" value={editForm.category || ''} onChange={e => setEditForm({...editForm, category: e.target.value})}>
-                            <option value="">Select...</option>
-                            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-                    <div className="col-span-1 md:col-span-2">
-                        <label className="block text-sm font-bold text-slate-500 mb-1">Artist Bio</label>
-                        <textarea className="w-full border p-2 rounded h-24" value={editForm.artist_bio || ''} onChange={e => setEditForm({...editForm, artist_bio: e.target.value})} placeholder="Update artist biography..."></textarea>
+                    <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Categories</label>
+                        <div className="bg-white border rounded p-2 max-h-32 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-2">
+                             {availableCategories.map(cat => (
+                                <button 
+                                    key={cat}
+                                    onClick={() => toggleCategorySelection(cat)}
+                                    className={`text-xs px-2 py-1 rounded text-left ${
+                                        (editForm.categories || []).includes(cat)
+                                        ? 'bg-primary text-white font-bold'
+                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600'
+                                    }`}
+                                >
+                                    {cat}
+                                </button>
+                             ))}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">Selected: {(editForm.categories || []).join(', ')}</p>
                     </div>
                 </div>
              </div>
@@ -386,17 +305,21 @@ const LyricsPage: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
-                        <button onClick={togglePresentation} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors" title="Presentation Mode">
-                            <Monitor className="w-5 h-5" />
+                        <button onClick={handleZoomOut} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors" title="Zoom Out"><ZoomOut className="w-5 h-5" /></button>
+                        <span className="text-xs font-mono text-slate-300">|</span>
+                        <button onClick={handleZoomIn} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors" title="Zoom In"><ZoomIn className="w-5 h-5" /></button>
+                        <span className="text-xs font-mono text-slate-300">|</span>
+                        <button onClick={handlePrint} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors" title="Print"><Printer className="w-5 h-5" /></button>
+                         <span className="text-xs font-mono text-slate-300">|</span>
+                         <button 
+                            onClick={handleFavorite} 
+                            className={`p-2 rounded-lg transition-colors ${isFav ? 'text-red-500 bg-red-50' : 'text-slate-400 hover:text-red-500'}`}
+                            title={isFav ? "Saved to Favorites" : "Add to Favorites"}
+                        >
+                            <Heart className={`w-5 h-5 ${isFav ? 'fill-current' : ''}`} />
                         </button>
                         <span className="text-xs font-mono text-slate-300">|</span>
-                        <button onClick={handleZoomOut} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors"><ZoomOut className="w-5 h-5" /></button>
-                        <span className="text-xs font-mono text-slate-300">|</span>
-                        <button onClick={handleZoomIn} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors"><ZoomIn className="w-5 h-5" /></button>
-                        <span className="text-xs font-mono text-slate-300">|</span>
-                        <button onClick={handlePrint} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors"><Printer className="w-5 h-5" /></button>
-                        <span className="text-xs font-mono text-slate-300">|</span>
-                        <button onClick={handleCopy} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors">
+                        <button onClick={handleCopy} className="p-2 text-slate-400 hover:text-primary rounded-lg transition-colors" title="Copy Text">
                             {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
                         </button>
                     </div>
@@ -467,18 +390,6 @@ const LyricsPage: React.FC = () => {
                     </div>
                 </div>
             )}
-
-            {!isEditing && data.category && (
-                <div className="mt-6 pt-6 border-t border-slate-100 flex items-center">
-                    <div className="p-2 bg-indigo-50 rounded-lg text-indigo-500 mr-3">
-                        <Tag className="w-4 h-4" />
-                    </div>
-                    <div>
-                        <p className="text-xs text-slate-400 font-bold uppercase mb-0.5">Category</p>
-                        <p className="text-slate-900 font-bold">{data.category}</p>
-                    </div>
-                </div>
-            )}
         </div>
 
         {/* 4. More From Artist */}
@@ -501,21 +412,21 @@ const LyricsPage: React.FC = () => {
                 </div>
             </Link>
         </div>
+        
+        {/* Category Tags (Multiple) */}
+        {displayCategories.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-2 no-print">
+                {displayCategories.map(cat => (
+                    <div key={cat} className="inline-flex items-center px-4 py-2 rounded-full bg-white border border-slate-200 text-sm font-bold text-slate-600 shadow-sm">
+                        <Tag className="w-4 h-4 mr-2 text-primary" /> 
+                        <span className="text-primary">{cat}</span>
+                    </div>
+                ))}
+            </div>
+        )}
 
         {/* 5. Bottom Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 no-print">
-             <button 
-                onClick={handleFavorite}
-                className={`flex items-center justify-center space-x-3 py-4 rounded-2xl font-bold transition-all shadow-md ${
-                    isFav 
-                    ? 'bg-red-50 text-red-500 border-2 border-red-100 hover:bg-red-100' 
-                    : 'bg-white text-slate-900 hover:bg-slate-50 border border-slate-200'
-                }`}
-            >
-                <Heart className={`w-6 h-6 ${isFav ? 'fill-current' : ''}`} />
-                <span>{isFav ? 'Saved' : 'Add to Favorites'}</span>
-            </button>
-
+        <div className="grid grid-cols-1 gap-4 no-print">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-around">
                  {socialLinks.map((link) => (
                     <a 

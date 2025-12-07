@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getArtistDetails } from '../services/geminiService';
@@ -42,13 +43,24 @@ const ArtistPage: React.FC = () => {
 
   const handleSaveEdit = () => {
       if (!artist) return;
+      
       const updatedArtist = {
           ...editForm,
           topSongs: topSongsString.split(',').map(s => s.trim()).filter(s => s)
       };
-      saveCustomArtist(artist.name, updatedArtist);
-      setArtist(updatedArtist);
-      setIsEditing(false);
+
+      // Handle Renaming
+      if (editForm.name !== artist.name) {
+          if (window.confirm(`Renaming artist from "${artist.name}" to "${editForm.name}". This will create a new profile and delete the old one. Continue?`)) {
+             saveCustomArtist(editForm.name, updatedArtist);
+             deleteCustomArtist(artist.name);
+             navigate(`/artist/${encodeURIComponent(editForm.name)}`, { replace: true });
+          }
+      } else {
+          saveCustomArtist(artist.name, updatedArtist);
+          setArtist(updatedArtist);
+          setIsEditing(false);
+      }
   };
 
   const handleDeleteArtist = () => {
@@ -86,7 +98,16 @@ const ArtistPage: React.FC = () => {
                          )}
 
                          <div>
-                             <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">{artist.name}</h1>
+                             {isEditing ? (
+                                 <input 
+                                    type="text" 
+                                    className="text-2xl md:text-3xl font-extrabold text-slate-900 border-b-2 border-primary focus:outline-none bg-transparent w-full"
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                                 />
+                             ) : (
+                                 <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">{artist.name}</h1>
+                             )}
                          </div>
                     </div>
                     

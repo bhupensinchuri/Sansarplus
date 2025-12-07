@@ -7,6 +7,8 @@ const CUSTOM_SONGS_KEY = 'sansarplus_custom_songs';
 const CUSTOM_ARTISTS_KEY = 'sansarplus_custom_artists';
 const SONG_VIEWS_KEY = 'sansarplus_song_views';
 const BANNERS_KEY = 'sansarplus_banners';
+const CATEGORIES_KEY = 'sansarplus_categories';
+const LOGO_KEY = 'sansarplus_site_logo';
 
 interface CustomSong extends LyricsData {
   id: string;
@@ -38,6 +40,8 @@ const DEFAULT_BANNERS: Banner[] = [
   { id: 'b14', imageUrl: 'https://picsum.photos/seed/verse14/1200/400', title: 'तर परमप्रभुको बाटो हेर्नेहरूले नयाँ बल पाउनेछन्; तिनीहरू गरूडझैं पखेटा फिँजाएर उड्नेछन्।', subtitle: 'यशैया ४०:३१' },
   { id: 'b15', imageUrl: 'https://picsum.photos/seed/verse15/1200/400', title: 'हे सबै थाकेका र बोझले दबिएका हो, मकहाँ आओ, र म तिमीहरूलाई विश्राम दिनेछु।', subtitle: 'मत्ती ११:२८' }
 ];
+
+const DEFAULT_CATEGORIES = ['Worship', 'Praise', 'Hymn', 'Pop', 'Rock', 'Folk', 'Gospel', 'Contemporary', 'Kids', 'Christmas', 'Other'];
 
 // --- Helpers ---
 
@@ -80,6 +84,53 @@ const saveViewsMap = (map: Record<string, number>) => {
 
 const saveBannersList = (list: Banner[]) => {
   localStorage.setItem(BANNERS_KEY, JSON.stringify(list));
+};
+
+// --- LOGO API ---
+
+export const getSiteLogo = (): string => {
+  return localStorage.getItem(LOGO_KEY) || '';
+};
+
+export const saveSiteLogo = (url: string) => {
+  localStorage.setItem(LOGO_KEY, url);
+  window.dispatchEvent(new Event('logo-change'));
+};
+
+// --- CATEGORIES API ---
+
+export const getCategories = (): string[] => {
+  try {
+    const stored = localStorage.getItem(CATEGORIES_KEY);
+    return stored ? JSON.parse(stored) : DEFAULT_CATEGORIES;
+  } catch { return DEFAULT_CATEGORIES; }
+};
+
+export const saveCategories = (categories: string[]) => {
+  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+};
+
+export const addCategory = (category: string) => {
+  const categories = getCategories();
+  if (!categories.includes(category)) {
+    categories.push(category);
+    saveCategories(categories);
+  }
+};
+
+export const updateCategory = (oldName: string, newName: string) => {
+  const categories = getCategories();
+  const idx = categories.indexOf(oldName);
+  if (idx !== -1 && !categories.includes(newName)) {
+    categories[idx] = newName;
+    saveCategories(categories);
+  }
+};
+
+export const deleteCategory = (category: string) => {
+  const categories = getCategories();
+  const newCategories = categories.filter(c => c !== category);
+  saveCategories(newCategories);
 };
 
 // --- VIEWS API ---
@@ -206,4 +257,43 @@ export const deleteBanner = (id: string) => {
   const list = getBannersList();
   const newList = list.filter(b => b.id !== id);
   saveBannersList(newList);
+};
+
+// --- BACKUP / RESTORE API ---
+
+export interface BackupData {
+    songs: Record<string, CustomSong>;
+    artists: Record<string, CustomArtist>;
+    views: Record<string, number>;
+    banners: Banner[];
+    categories: string[];
+    logo: string;
+    timestamp: number;
+}
+
+export const exportAllData = (): BackupData => {
+    return {
+        songs: getCustomSongsMap(),
+        artists: getCustomArtistsMap(),
+        views: getViewsMap(),
+        banners: getBannersList(),
+        categories: getCategories(),
+        logo: getSiteLogo(),
+        timestamp: Date.now()
+    };
+};
+
+export const importAllData = (data: BackupData): boolean => {
+    try {
+        if (data.songs) saveSongsMap(data.songs);
+        if (data.artists) saveArtistsMap(data.artists);
+        if (data.views) saveViewsMap(data.views);
+        if (data.banners && Array.isArray(data.banners)) saveBannersList(data.banners);
+        if (data.categories && Array.isArray(data.categories)) saveCategories(data.categories);
+        if (data.logo) saveSiteLogo(data.logo);
+        return true;
+    } catch (e) {
+        console.error("Failed to restore backup", e);
+        return false;
+    }
 };
