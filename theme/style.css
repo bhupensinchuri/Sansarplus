@@ -1,0 +1,30 @@
+/*
+Theme Name: SansarPlus App Theme
+Theme URI: https://sansarplus.com
+Author: SansarPlus Team
+Author URI: https://sansarplus.com
+Description: A React-based WordPress theme for SansarPlus lyrics application.
+Version: 1.0.0
+License: GNU General Public License v2 or later
+License URI: http://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: sansarplus
+tags: react, app, lyrics, full-site-editing
+*/
+
+/* 
+  Reset default WordPress margins to allow React to take full width 
+*/
+body, #sansarplus-app {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* Hide the WordPress Admin bar for regular users to keep the "App" feel */
+@media screen and (max-width: 600px) {
+    #wpadminbar {
+        position: fixed;
+    }
+}
