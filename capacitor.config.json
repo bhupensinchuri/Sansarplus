@@ -1,0 +1,6 @@
+{
+  "appId": "com.sansarplus.lyrics",
+  "appName": "SansarPlus",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

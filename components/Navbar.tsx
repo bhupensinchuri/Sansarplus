@@ -1,15 +1,18 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Music2, LogIn, UserPlus, LogOut, User as UserIcon } from 'lucide-react';
-import { useAuth, getCurrentUser, logout } from '../utils/auth';
+import { BookHeart, LogOut, User as UserIcon, Languages } from 'lucide-react';
+import { useAuth, logout } from '../utils/auth';
 import { getSiteLogo } from '../utils/dataManager';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const Navbar: React.FC = () => {
-  const isAuth = useAuth();
-  const user = getCurrentUser();
+  const { user, isAuth } = useAuth();
   const navigate = useNavigate();
-  const [logoUrl, setLogoUrl] = useState(getSiteLogo());
+  const [logoUrl, setLogoUrl] = useState('');
+  const { language, toggleLanguage } = useLanguage();
+  // Local state to force re-render on auth changes if user details update
+  const [, setTick] = useState(0);
 
   const handleLogout = () => {
     logout();
@@ -18,10 +21,19 @@ const Navbar: React.FC = () => {
 
   useEffect(() => {
     const handleLogoChange = () => {
-      setLogoUrl(getSiteLogo());
+      getSiteLogo().then(setLogoUrl);
     };
+    const handleAuthChange = () => {
+      setTick(t => t + 1);
+    }
     window.addEventListener('logo-change', handleLogoChange);
-    return () => window.removeEventListener('logo-change', handleLogoChange);
+    window.addEventListener('auth-change', handleAuthChange);
+    // Initial fetch
+    getSiteLogo().then(setLogoUrl);
+    return () => {
+        window.removeEventListener('logo-change', handleLogoChange);
+        window.removeEventListener('auth-change', handleAuthChange);
+    }
   }, []);
 
   return (
@@ -39,7 +51,7 @@ const Navbar: React.FC = () => {
                 />
             ) : (
                 <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-all duration-300">
-                  <Music2 className="text-white w-6 h-6" />
+                  <BookHeart className="text-white w-6 h-6" />
                 </div>
             )}
             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
@@ -47,14 +59,36 @@ const Navbar: React.FC = () => {
             </span>
           </Link>
 
-          {/* Auth Buttons */}
+          {/* Right Side Items */}
           <div className="flex items-center space-x-2 md:space-x-4">
+            
+            {/* Language Toggle */}
+            <button
+                onClick={toggleLanguage}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-xs font-bold text-slate-700"
+            >
+                <Languages className="w-4 h-4" />
+                <span>{language === 'english' ? 'EN' : 'ने'}</span>
+            </button>
+
+            {/* Auth Buttons */}
             {isAuth && user ? (
               <div className="flex items-center gap-2 md:gap-4">
-                 <div className="hidden md:flex flex-col items-end">
-                    <span className="text-sm font-bold text-slate-900">{user.name || user.username}</span>
-                    <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider bg-slate-100 px-1.5 rounded">{user.role === 'USER' ? 'Member' : 'Admin'}</span>
-                 </div>
+                 {/* User Profile Link */}
+                 <Link to="/profile" className="flex items-center gap-3 hover:bg-slate-100 p-1.5 rounded-full pr-3 transition-colors group">
+                    <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 shadow-sm bg-slate-100 flex items-center justify-center">
+                        {user.profilePicture ? (
+                            <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
+                        ) : (
+                            <UserIcon className="w-5 h-5 text-slate-400" />
+                        )}
+                    </div>
+                    <div className="hidden md:flex flex-col items-start">
+                        <span className="text-sm font-bold text-slate-900 group-hover:text-primary transition-colors">{user.name || user.username}</span>
+                        <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider bg-slate-100 px-1.5 rounded">{user.role === 'USER' ? 'Member' : 'Admin'}</span>
+                    </div>
+                 </Link>
+                 
                  <button 
                     onClick={handleLogout}
                     className="p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-500 transition-colors"
@@ -64,14 +98,8 @@ const Navbar: React.FC = () => {
                  </button>
               </div>
             ) : (
-              <div className="flex items-center space-x-2">
-                 <Link to="/user-login" className="hidden md:flex items-center px-4 py-2 text-sm font-bold text-slate-600 hover:text-primary transition-colors">
-                    Login
-                 </Link>
-                 <Link to="/signup" className="flex items-center px-4 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all">
-                    <UserPlus className="w-4 h-4 mr-2" /> <span className="hidden md:inline">Sign Up</span><span className="md:hidden">Join</span>
-                 </Link>
-              </div>
+              // Public registration hidden. Admin login accessible via Menu.
+              null
             )}
           </div>
 

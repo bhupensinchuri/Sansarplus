@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Search, Heart, Menu, Grid } from 'lucide-react';
+import { Home, User, Heart, Menu, Grid } from 'lucide-react';
 
 const BottomNav: React.FC = () => {
   return (
@@ -17,13 +17,13 @@ const BottomNav: React.FC = () => {
         </NavLink>
 
         <NavLink 
-          to="/search" 
+          to="/browse/artists/A" 
           className={({ isActive }) => 
             `flex flex-col items-center justify-center w-14 h-full space-y-1 transition-colors duration-200 ${isActive ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}`
           }
         >
-          <Search className="w-6 h-6" />
-          <span className="text-[10px] font-medium">Search</span>
+          <User className="w-6 h-6" />
+          <span className="text-[10px] font-medium">Artists</span>
         </NavLink>
 
         <NavLink 

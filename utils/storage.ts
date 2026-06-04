@@ -1,10 +1,14 @@
 import { getCurrentUser } from './auth';
 
 export interface FavoriteItem {
-  id: string; // "artist-Name" or "song-Title-Artist"
+  id: string; // Internal storage key: "artist-Name" or "song-Title-Artist"
+  dbId?: string | number; // Actual database ID for reliable linking
   type: 'artist' | 'song';
   name: string;
+  name_nepali?: string; // Added for localized display
   subtext: string; // Artist for songs, Genre for artists (if available)
+  language?: string;
+  note?: string; // Added: Song note
 }
 
 // Helper to get storage key based on current user

@@ -1,7 +1,10 @@
+
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useLanguage } from '../contexts/LanguageContext';
 
-const ALPHABET = ['All', '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
+const ENGLISH_ALPHABET = ['All', '#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')];
+const NEPALI_ALPHABET = ['All', ...'अआइईउऊएऐओऔकखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसह'.split('')];
 
 interface AlphabetNavProps {
   mode?: 'songs' | 'artists';
@@ -9,17 +12,21 @@ interface AlphabetNavProps {
 
 const AlphabetNav: React.FC<AlphabetNavProps> = ({ mode }) => {
   const location = useLocation();
+  const { language } = useLanguage();
+  
   // Determine mode from URL if not passed explicitly, default to songs
   const currentMode = mode || (location.pathname.includes('/browse/artists') ? 'artists' : 'songs');
   
-  const currentLetter = location.pathname.split('/').pop() || '';
+  const currentLetter = decodeURIComponent(location.pathname.split('/').pop() || '');
   const baseUrl = currentMode === 'artists' ? '/browse/artists' : '/browse/songs';
+  
+  const alphabet = language === 'nepali' ? NEPALI_ALPHABET : ENGLISH_ALPHABET;
 
   return (
     <div className="sticky top-16 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 py-3">
         <div className="flex flex-wrap items-center justify-center gap-1.5 md:gap-2">
-          {ALPHABET.map((char) => {
+          {alphabet.map((char) => {
              const charCode = char === '#' ? '0-9' : char;
              const isActive = currentLetter.toLowerCase() === charCode.toLowerCase();
              
@@ -33,7 +40,7 @@ const AlphabetNav: React.FC<AlphabetNavProps> = ({ mode }) => {
              return (
               <Link
                 key={char}
-                to={`${baseUrl}/${charCode}`}
+                to={`${baseUrl}/${encodeURIComponent(charCode)}`}
                 className={`${baseClasses} ${sizeClasses} ${activeClasses}`}
               >
                 {char}

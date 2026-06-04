@@ -1,10 +1,11 @@
-import React from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Music2, User, Phone, ListMusic, Grid, Lock, ShieldCheck, HeartHandshake } from 'lucide-react';
+import { BookHeart, User, Phone, ListMusic, Grid, Lock, ShieldCheck, HeartHandshake, UserCircle, Keyboard, Search, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../utils/auth';
 
 const MenuPage: React.FC = () => {
-  const isAuth = useAuth();
+  const { isAuth } = useAuth();
 
   const menuItems = [
     { 
@@ -15,11 +16,18 @@ const MenuPage: React.FC = () => {
         gradient: 'from-blue-500 to-cyan-500' 
     },
     { 
-        title: 'Artists A-Z', 
+        title: 'Artists', 
         description: 'Find your favorite artists',
         icon: User, 
         path: '/browse/artists/A', 
         gradient: 'from-purple-500 to-pink-500' 
+    },
+    { 
+        title: 'Search',
+        description: 'Find songs and lyrics',
+        icon: Search,
+        path: '/search',
+        gradient: 'from-amber-400 to-orange-500'
     },
     { 
         title: 'Categories', 
@@ -27,6 +35,13 @@ const MenuPage: React.FC = () => {
         icon: Grid, 
         path: '/categories', 
         gradient: 'from-emerald-500 to-teal-500' 
+    },
+    { 
+        title: 'Type In Nepali', 
+        description: 'English to Nepali Converter',
+        icon: Keyboard, 
+        path: '/type-nepali', 
+        gradient: 'from-fuchsia-600 to-purple-600' 
     },
     { 
         title: 'Donate', 
@@ -43,7 +58,25 @@ const MenuPage: React.FC = () => {
         path: '/contact', 
         gradient: 'from-orange-500 to-amber-500' 
     },
+    { 
+        title: 'Disclaimer', 
+        description: 'Legal information & copyright',
+        icon: ShieldAlert, 
+        path: '/disclaimer', 
+        gradient: 'from-slate-500 to-slate-700' 
+    },
   ];
+
+  // Add User Profile link if authenticated
+  if (isAuth) {
+      menuItems.unshift({
+        title: 'My Profile',
+        description: 'Edit photo & details',
+        icon: UserCircle,
+        path: '/profile',
+        gradient: 'from-indigo-500 to-violet-500'
+      });
+  }
 
   const adminItem = isAuth ? {
       title: 'Dashboard',
@@ -128,7 +161,7 @@ const MenuPage: React.FC = () => {
 
         <div className="mt-12 text-center">
            <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-full shadow-lg mb-4">
-               <Music2 className="w-8 h-8 text-indigo-500" />
+               <BookHeart className="w-8 h-8 text-indigo-500" />
            </div>
            <p className="font-bold text-slate-900">SansarPlus</p>
            <p className="text-slate-400 text-xs mt-1">

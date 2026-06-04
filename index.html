@@ -2,8 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>SansarPlus | Nepali Christian Lyrics & Worship</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#6366f1" />
+    
+    <!-- Polyfill for importmap support on older mobile browsers -->
+    <script async src="https://ga.jspm.io/npm:es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -24,11 +30,26 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
+      html, body, #sansarplus-app {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+      }
+
       body {
         font-family: 'Inter', sans-serif;
         background-color: #f8fafc; /* Slate 50 */
         color: #1e293b; /* Slate 800 */
+        -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
       }
+      
+      /* Safe area padding for iPhone X+ */
+      .pb-safe {
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+
       /* Custom scrollbar for lyrics */
       .lyrics-scroll::-webkit-scrollbar {
         width: 8px;
@@ -53,12 +74,17 @@
           scrollbar-width: none;  /* Firefox */
       }
 
+      .print-only { display: none; }
+
       /* Print Styles */
       @media print {
-        @page { margin: 2cm; }
+        @page { margin: 1cm; }
         body { background: white; color: black; }
-        nav, footer, .no-print, .fixed { display: none !important; }
+        nav, footer, .no-print, .fixed, .adsbygoogle { display: none !important; }
         
+        .print-only { display: block !important; }
+        .screen-only { display: none !important; }
+
         /* Reset containers for print */
         #sansarplus-app, .min-h-screen, .max-w-6xl, .max-w-7xl { 
             width: 100% !important; 
@@ -74,34 +100,45 @@
             text-shadow: none !important; 
         }
 
-        /* Adjust grid layout for print to be linear */
-        .grid { display: block !important; }
+        /* Target columns to be full width unless side-by-side is specified */
         .lg\:col-span-8, .lg\:col-span-4 { width: 100% !important; margin-bottom: 20px; }
         
         /* Hide sidebar navigation links specifically */
         .print-hidden { display: none !important; }
         
         /* Remove borders and shadows */
-        .border, .shadow-sm, .shadow-md { 
+        .border, .shadow-sm, .shadow-md, .shadow-xl, .shadow-2xl { 
             border: none !important; 
             box-shadow: none !important; 
+        }
+
+        .whitespace-pre-wrap {
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
         }
       }
     </style>
   <script type="importmap">
 {
   "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.6"
+    "react": "https://esm.sh/react@18.2.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0?external=react",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/?external=react",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?external=react",
+    "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3?external=react,react-dom",
+    "@google/genai": "https://esm.sh/@google/genai@0.1.1",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3"
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="sansarplus-app"></div>
-  </body>
+    <!-- Load React Application Entry point -->
+    <script type="module" src="./index.tsx"></script>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>
